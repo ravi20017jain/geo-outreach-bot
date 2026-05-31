@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install playwright anthropic gspread google-auth 2captcha-python
+          pip install playwright anthropic gspread google-auth 2captcha-python Pillow
           playwright install chromium
           playwright install-deps chromium
 
@@ -30,3 +30,19 @@ jobs:
           GOOGLE_SHEET_ID:    ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_CREDS_JSON:  ${{ secrets.GOOGLE_CREDS_JSON }}
         run: python contact_bot.py
+
+      - name: Upload before-submit screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-before-submit
+          path: screenshots/before_submit/
+          if-no-files-found: ignore
+
+      - name: Upload after-submit screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-after-submit
+          path: screenshots/after_submit/
+          if-no-files-found: ignore
