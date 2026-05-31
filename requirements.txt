@@ -1,0 +1,5 @@
+playwright
+anthropic
+gspread
+google-auth
+2captcha-python
