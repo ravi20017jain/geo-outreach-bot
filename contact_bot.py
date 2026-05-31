@@ -137,22 +137,35 @@ def normalise_url(url):
 
 
 def find_contact_page(page, base_url):
+    current_url = page.url
+
+    # Step 1: Scan links — click FIRST match only, then return immediately
     try:
         links = page.locator("a").all()
         for link in links:
             try:
                 href = link.get_attribute("href") or ""
                 if any(kw in href.lower() for kw in CONTACT_KEYWORDS):
+                    # Skip if already on contact page
+                    if any(kw in current_url.lower() for kw in CONTACT_KEYWORDS):
+                        log.info("  Already on contact page: {}".format(current_url))
+                        return True
                     log.info("  Contact link: {}".format(href))
                     link.click()
                     page.wait_for_load_state("domcontentloaded", timeout=15000)
                     time.sleep(0.5)
-                    return True
+                    return True  # immediately return — no loop
             except Exception:
                 pass
     except Exception:
         pass
 
+    # Step 2: Already on contact page check
+    if any(kw in current_url.lower() for kw in CONTACT_KEYWORDS):
+        log.info("  Already on contact page: {}".format(current_url))
+        return True
+
+    # Step 3: Guess common paths
     for kw in CONTACT_KEYWORDS:
         candidate = "{}/{}".format(base_url, kw)
         try:
@@ -275,9 +288,24 @@ def ask_claude(page, website):
     """Claude Vision se form actions lao."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    img_b64   = base64.standard_b64encode(
-        page.screenshot(full_page=True)
-    ).decode("utf-8")
+    # Screenshot lo aur resize karo — max 1280px width (Claude limit 8000px)
+    screenshot_bytes = page.screenshot(full_page=False)  # full_page=False = viewport only
+    
+    # Resize using PIL if image too large
+    try:
+        import io
+        from PIL import Image
+        img = Image.open(io.BytesIO(screenshot_bytes))
+        # Resize if larger than 1280px width
+        if img.width > 1280 or img.height > 1280:
+            img.thumbnail((1280, 1280), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        screenshot_bytes = buf.getvalue()
+    except Exception:
+        pass  # PIL nahi hai to original use karo
+
+    img_b64   = base64.standard_b64encode(screenshot_bytes).decode("utf-8")
     page_html = get_page_html(page)
 
     prompt = """You are a web automation expert. Fill this contact form on: {website}
@@ -480,7 +508,30 @@ def main():
                     _, submitted = execute_actions(pg,
                         [a for a in actions if a.get("action") == "click"])
 
+                # Screenshot BEFORE submit — form filled dikhega
+                try:
+                    import re, os
+                    safe_name = re.sub(r'[^a-zA-Z0-9]', '_', website)[:50]
+                    os.makedirs("screenshots/before_submit", exist_ok=True)
+                    screenshot_path = "screenshots/before_submit/{}.png".format(safe_name)
+                    pg.screenshot(path=screenshot_path, full_page=False)
+                    log.info("  [Screenshot] Before submit saved: {}".format(screenshot_path))
+                except Exception as e:
+                    log.warning("  [Screenshot] Failed: {}".format(e))
+
                 status = "submitted" if submitted else "filled_not_submitted"
+
+                # Screenshot AFTER submit — confirmation page dikhega
+                try:
+                    import re, os
+                    safe_name = re.sub(r'[^a-zA-Z0-9]', '_', website)[:50]
+                    os.makedirs("screenshots/after_submit", exist_ok=True)
+                    screenshot_path = "screenshots/after_submit/{}.png".format(safe_name)
+                    pg.screenshot(path=screenshot_path, full_page=False)
+                    log.info("  [Screenshot] After submit saved: {}".format(screenshot_path))
+                except Exception as e:
+                    log.warning("  [Screenshot] Failed: {}".format(e))
+
                 update_sheet_row(
                     ws, row_idx, status,
                     notes="OK" if submitted else "Submit failed",
