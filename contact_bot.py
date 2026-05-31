@@ -151,8 +151,11 @@ def find_contact_page(page, base_url):
                         log.info("  Already on contact page: {}".format(current_url))
                         return True
                     log.info("  Contact link: {}".format(href))
-                    link.click()
-                    page.wait_for_load_state("domcontentloaded", timeout=15000)
+                    try:
+                        link.click()
+                        page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    except Exception:
+                        pass  # timeout ho to bhi aage badho
                     time.sleep(0.5)
                     return True  # immediately return — no loop
             except Exception:
