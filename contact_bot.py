@@ -37,22 +37,7 @@ EMAIL       = "sales@zevahit.com"
 PHONE       = "+918109201842"
 SUBJECT     = "Is Your Client's Brand Invisible to ChatGPT?"
 
-MESSAGE = """Hi,
-
-Quick question - when someone asks ChatGPT or Perplexity about your client's niche, does their brand show up?
-
-For most businesses, the answer is no. And as more buyers shift to AI for research, that's a growing problem every month.
-
-We help brands get cited by LLMs like ChatGPT, Gemini, and Perplexity through strategic guest posts on high-authority, niche-relevant sites. The logic is simple - AI models pull from trusted published content, so more quality mentions = higher chance of being recommended by AI.
-
-This isn't traditional link building. It's Generative Engine Optimization (GEO) - and agencies offering it now will have a serious edge.
-
-Would love to show you how this fits into your client offerings. Open to a quick chat?
-
-Warm Regards,
-Salman
-Zevahit.com
-Client Reviews: https://clutch.co/profile/zevahit#reviews"""
+MESSAGE = "Hi,\n\nQuick question - when someone asks ChatGPT or Perplexity about your client's niche, does their brand show up?\n\nFor most businesses, the answer is no. And as more buyers shift to AI for research, that's a growing problem every month.\n\nWe help brands get cited by LLMs like ChatGPT, Gemini, and Perplexity through strategic guest posts on high-authority, niche-relevant sites. The logic is simple - AI models pull from trusted published content, so more quality mentions = higher chance of being recommended by AI.\n\nThis isn't traditional link building. It's Generative Engine Optimization (GEO) - and agencies offering it now will have a serious edge.\n\nWould love to show you how this fits into your client offerings. Open to a quick chat?\n\nWarm Regards,\nSalman\nZevahit.com\nClient Reviews: https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
@@ -324,10 +309,10 @@ Details to fill:
 - Email: {email}
 - Phone: {phone}
 - Subject/Title: {subject}
-- Message: (use the full message below)
-
-Message:
+- Message (copy EXACTLY, keep all line breaks):
 {message}
+
+IMPORTANT: Fill the message field with the COMPLETE text above. Do not truncate or summarize.
 
 Return ONLY a JSON array of actions. Each action:
   "action": "fill" | "check" | "click" | "select"
