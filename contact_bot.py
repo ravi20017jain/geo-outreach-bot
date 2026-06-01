@@ -37,7 +37,7 @@ EMAIL       = "sales@zevahit.com"
 PHONE       = "+918109201842"
 SUBJECT     = "Is Your Client's Brand Invisible to ChatGPT?"
 
-MESSAGE = "Hi,\n\nQuick question - when someone asks ChatGPT or Perplexity about your client's niche, does their brand show up?\n\nFor most businesses, the answer is no. And as more buyers shift to AI for research, that's a growing problem every month.\n\nWe help brands get cited by LLMs like ChatGPT, Gemini, and Perplexity through strategic guest posts on high-authority, niche-relevant sites. The logic is simple - AI models pull from trusted published content, so more quality mentions = higher chance of being recommended by AI.\n\nThis isn't traditional link building. It's Generative Engine Optimization (GEO) - and agencies offering it now will have a serious edge.\n\nWould love to show you how this fits into your client offerings. Open to a quick chat?\n\nWarm Regards,\nSalman\nZevahit.com\nClient Reviews: https://clutch.co/profile/zevahit#reviews"
+MESSAGE = "Hi,\n\nWhen your clients' buyers ask ChatGPT or Perplexity for recommendations in their niche - do their brands show up?\n\nFor most, not yet. We help SEO agencies fix that with GEO (Generative Engine Optimization) - getting client brands cited by ChatGPT, Gemini & Perplexity through guest posts on high-authority sites. You can offer it as your own; we work behind the scenes.\n\nWant me to send over a quick sample?\n\nSalman\nZevahit.com\nClient Reviews: https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
@@ -273,47 +273,11 @@ def get_page_html(page):
 
 
 def ask_claude(page, website):
-    """Claude Vision se form actions lao."""
+    """Claude se form actions lao (sirf HTML — image nahi, API cost bachane ke liye)."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # Screenshot lo — retry ke saath (kabhi-kabhi Chrome capture fail karta hai)
-    screenshot_bytes = None
-    # Viewport chhota fix karo taaki screenshot kabhi 8000px se badi na ho
-    try:
-        page.set_viewport_size({"width": 1280, "height": 1024})
-    except Exception:
-        pass
-    for attempt in range(3):
-        try:
-            page.wait_for_load_state("domcontentloaded", timeout=5000)
-            time.sleep(1)
-            screenshot_bytes = page.screenshot(full_page=False, timeout=15000)
-            break
-        except Exception as e:
-            log.warning("  [Screenshot] attempt {} failed: {}".format(attempt + 1, e))
-            time.sleep(2)
-
-    # Resize using PIL — Claude limit 8000px. Fail/oversized ho to image DROP kar do.
-    if screenshot_bytes:
-        try:
-            import io
-            from PIL import Image
-            img = Image.open(io.BytesIO(screenshot_bytes))
-            # Hamesha 1280px tak shrink karo (chahe chhoti ho ya badi)
-            img.thumbnail((1280, 1280), Image.LANCZOS)
-            # Safety: agar phir bhi koi dimension 8000 cross kare to image drop
-            if img.width > 8000 or img.height > 8000:
-                raise Exception("still oversized after resize: {}x{}".format(img.width, img.height))
-            buf = io.BytesIO()
-            img.save(buf, format="PNG", optimize=True)
-            screenshot_bytes = buf.getvalue()
-        except Exception as e:
-            # PIL nahi mila / resize fail / oversized -> image SKIP, sirf HTML bhejo
-            log.warning("  [Screenshot] image dropped: {}".format(e))
-            screenshot_bytes = None
-
-    # Screenshot mila to base64 banao, warna khali (image optional)
-    img_b64 = base64.standard_b64encode(screenshot_bytes).decode("utf-8") if screenshot_bytes else ""
+    # Image Claude ko NAHI bhejni (cost bachane ke liye) — sirf HTML kaafi hai
+    img_b64 = ""
 
     page_html = get_page_html(page)
     # HTML bahut bada ho to trim karo — warna API 400 deta hai
