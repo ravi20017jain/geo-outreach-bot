@@ -41,7 +41,11 @@ MESSAGE = "Hi,\n\nWhen your clients' buyers ask ChatGPT or Perplexity for recomm
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
-CONTACT_KEYWORDS = ["contact", "contact-us", "get-in-touch", "reach-us", "write-to-us"]
+CONTACT_KEYWORDS = ["contact", "contact-us", "contactus", "get-in-touch", "getintouch",
+                    "reach-us", "reachus", "write-to-us", "get-started", "getstarted",
+                    "enquiry", "enquire", "inquiry", "inquire", "lets-talk", "let-s-talk",
+                    "work-with-us", "hire-us", "start-project", "request-quote", "quote",
+                    "book-a-call", "schedule", "consultation", "talk-to-us", "connect"]
 
 # ------------------------------------------
 #  LOGGING
@@ -130,7 +134,14 @@ def find_contact_page(page, base_url):
         for link in links:
             try:
                 href = link.get_attribute("href") or ""
-                if any(kw in href.lower() for kw in CONTACT_KEYWORDS):
+                link_text = ""
+                try:
+                    link_text = (link.inner_text(timeout=500) or "").lower()
+                except Exception:
+                    pass
+                # href ya link ke text — dono me keyword check karo
+                if any(kw in href.lower() for kw in CONTACT_KEYWORDS) or \
+                   any(kw.replace("-", " ") in link_text for kw in CONTACT_KEYWORDS):
                     # Skip if already on contact page
                     if any(kw in current_url.lower() for kw in CONTACT_KEYWORDS):
                         log.info("  Already on contact page: {}".format(current_url))
@@ -399,11 +410,25 @@ def execute_actions(page, actions):
                                      "we have received", "submitted successfully", "your message",
                                      "successfully sent", "received your", "get back to you",
                                      "contacting us", "be in touch", "form submitted", "sent successfully"]
-                    # Confirmation ke liye 10 baar check karo (~30 sec) — kabhi submit ke baad
-                    # dobara captcha aata hai ya thank-you message late aata hai
+                    # Click ke baad: captcha aaye to solve karo, phir confirmation dhundo.
+                    # ~60 sec tak check karo (post-submit captcha 1-2 min le sakta hai).
                     confirmed = False
-                    for _ in range(10):
+                    captcha_done = False
+                    for i in range(20):
                         time.sleep(3)
+                        # Har check me captcha dekho — agar submit ke baad aaya ho
+                        if not captcha_done:
+                            try:
+                                if solve_captcha(page, page.url):
+                                    captcha_done = True
+                                    # captcha solve hua to dobara submit click karne ki koshish
+                                    try:
+                                        locator.click(timeout=2000)
+                                    except Exception:
+                                        pass
+                                    time.sleep(2)
+                            except Exception:
+                                pass
                         page_text = ""
                         try:
                             page_text = page.inner_text("body", timeout=3000).lower()
@@ -495,14 +520,9 @@ def main():
                     update_sheet_row(ws, row_idx, "error", "AI error: {}".format(str(e)[:80]))
                     continue
 
-                # Execute
+                # Execute — execute_actions khud post-submit captcha handle karta hai
                 filled, submitted = execute_actions(pg, actions)
                 time.sleep(1)
-
-                # Captcha after submit
-                if not submitted and solve_captcha(pg, website):
-                    _, submitted = execute_actions(pg,
-                        [a for a in actions if a.get("action") == "click"])
 
                 # Screenshot BEFORE submit — form filled dikhega
                 try:
