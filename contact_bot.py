@@ -395,18 +395,25 @@ def execute_actions(page, actions):
                 if locator.is_visible(timeout=1000):
                     url_before = page.url
                     locator.click()
-                    time.sleep(3)
-                    # Submit sach me hua ya nahi — verify karo
-                    page_text = ""
-                    try:
-                        page_text = page.inner_text("body", timeout=3000).lower()
-                    except Exception:
-                        pass
                     success_words = ["thank you", "thanks", "message sent", "we'll be in touch",
                                      "we have received", "submitted successfully", "your message",
-                                     "successfully sent", "received your", "get back to you"]
-                    url_changed = page.url != url_before
-                    if any(w in page_text for w in success_words) or url_changed:
+                                     "successfully sent", "received your", "get back to you",
+                                     "contacting us", "be in touch", "form submitted", "sent successfully"]
+                    # Confirmation ke liye 10 baar check karo (~30 sec) — kabhi submit ke baad
+                    # dobara captcha aata hai ya thank-you message late aata hai
+                    confirmed = False
+                    for _ in range(10):
+                        time.sleep(3)
+                        page_text = ""
+                        try:
+                            page_text = page.inner_text("body", timeout=3000).lower()
+                        except Exception:
+                            pass
+                        url_changed = page.url != url_before
+                        if any(w in page_text for w in success_words) or url_changed:
+                            confirmed = True
+                            break
+                    if confirmed:
                         submitted = True
                         log.info("  [OK] submit confirmed: {}".format(selector[:50]))
                     else:
