@@ -278,6 +278,11 @@ def ask_claude(page, website):
 
     # Screenshot lo — retry ke saath (kabhi-kabhi Chrome capture fail karta hai)
     screenshot_bytes = None
+    # Viewport chhota fix karo taaki screenshot kabhi 8000px se badi na ho
+    try:
+        page.set_viewport_size({"width": 1280, "height": 1024})
+    except Exception:
+        pass
     for attempt in range(3):
         try:
             page.wait_for_load_state("domcontentloaded", timeout=5000)
@@ -288,7 +293,7 @@ def ask_claude(page, website):
             log.warning("  [Screenshot] attempt {} failed: {}".format(attempt + 1, e))
             time.sleep(2)
 
-    # Resize using PIL if image too large
+    # Resize using PIL if image too large — Claude limit 8000px
     if screenshot_bytes:
         try:
             import io
@@ -300,8 +305,10 @@ def ask_claude(page, website):
             buf = io.BytesIO()
             img.save(buf, format="PNG", optimize=True)
             screenshot_bytes = buf.getvalue()
-        except Exception:
-            pass  # PIL nahi hai to original use karo
+        except Exception as e:
+            # PIL fail hua / resize nahi hua to image SKIP karo (oversized image 400 deta hai)
+            log.warning("  [Screenshot] resize failed, image skip: {}".format(e))
+            screenshot_bytes = None
 
     # Screenshot mila to base64 banao, warna khali (image optional)
     img_b64 = base64.standard_b64encode(screenshot_bytes).decode("utf-8") if screenshot_bytes else ""
