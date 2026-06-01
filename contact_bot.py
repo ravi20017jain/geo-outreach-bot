@@ -293,21 +293,23 @@ def ask_claude(page, website):
             log.warning("  [Screenshot] attempt {} failed: {}".format(attempt + 1, e))
             time.sleep(2)
 
-    # Resize using PIL if image too large — Claude limit 8000px
+    # Resize using PIL — Claude limit 8000px. Fail/oversized ho to image DROP kar do.
     if screenshot_bytes:
         try:
             import io
             from PIL import Image
             img = Image.open(io.BytesIO(screenshot_bytes))
-            # Resize if larger than 1280px width
-            if img.width > 1280 or img.height > 1280:
-                img.thumbnail((1280, 1280), Image.LANCZOS)
+            # Hamesha 1280px tak shrink karo (chahe chhoti ho ya badi)
+            img.thumbnail((1280, 1280), Image.LANCZOS)
+            # Safety: agar phir bhi koi dimension 8000 cross kare to image drop
+            if img.width > 8000 or img.height > 8000:
+                raise Exception("still oversized after resize: {}x{}".format(img.width, img.height))
             buf = io.BytesIO()
             img.save(buf, format="PNG", optimize=True)
             screenshot_bytes = buf.getvalue()
         except Exception as e:
-            # PIL fail hua / resize nahi hua to image SKIP karo (oversized image 400 deta hai)
-            log.warning("  [Screenshot] resize failed, image skip: {}".format(e))
+            # PIL nahi mila / resize fail / oversized -> image SKIP, sirf HTML bhejo
+            log.warning("  [Screenshot] image dropped: {}".format(e))
             screenshot_bytes = None
 
     # Screenshot mila to base64 banao, warna khali (image optional)
