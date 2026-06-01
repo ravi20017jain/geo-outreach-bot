@@ -276,25 +276,40 @@ def ask_claude(page, website):
     """Claude Vision se form actions lao."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # Screenshot lo aur resize karo — max 1280px width (Claude limit 8000px)
-    screenshot_bytes = page.screenshot(full_page=False)  # full_page=False = viewport only
-    
-    # Resize using PIL if image too large
-    try:
-        import io
-        from PIL import Image
-        img = Image.open(io.BytesIO(screenshot_bytes))
-        # Resize if larger than 1280px width
-        if img.width > 1280 or img.height > 1280:
-            img.thumbnail((1280, 1280), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="PNG", optimize=True)
-        screenshot_bytes = buf.getvalue()
-    except Exception:
-        pass  # PIL nahi hai to original use karo
+    # Screenshot lo — retry ke saath (kabhi-kabhi Chrome capture fail karta hai)
+    screenshot_bytes = None
+    for attempt in range(3):
+        try:
+            page.wait_for_load_state("domcontentloaded", timeout=5000)
+            time.sleep(1)
+            screenshot_bytes = page.screenshot(full_page=False, timeout=15000)
+            break
+        except Exception as e:
+            log.warning("  [Screenshot] attempt {} failed: {}".format(attempt + 1, e))
+            time.sleep(2)
 
-    img_b64   = base64.standard_b64encode(screenshot_bytes).decode("utf-8")
+    # Resize using PIL if image too large
+    if screenshot_bytes:
+        try:
+            import io
+            from PIL import Image
+            img = Image.open(io.BytesIO(screenshot_bytes))
+            # Resize if larger than 1280px width
+            if img.width > 1280 or img.height > 1280:
+                img.thumbnail((1280, 1280), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", optimize=True)
+            screenshot_bytes = buf.getvalue()
+        except Exception:
+            pass  # PIL nahi hai to original use karo
+
+    # Screenshot mila to base64 banao, warna khali (image optional)
+    img_b64 = base64.standard_b64encode(screenshot_bytes).decode("utf-8") if screenshot_bytes else ""
+
     page_html = get_page_html(page)
+    # HTML bahut bada ho to trim karo — warna API 400 deta hai
+    if len(page_html) > 50000:
+        page_html = page_html[:50000]
 
     prompt = """You are a web automation expert. Fill this contact form on: {website}
 
@@ -337,20 +352,19 @@ Rules:
         message=MESSAGE
     )
 
+    content = []
+    if img_b64:  # screenshot mila tabhi image bhejo
+        content.append({"type": "image", "source": {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": img_b64
+        }})
+    content.append({"type": "text", "text": prompt})
+
     response = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-6",
         max_tokens=2000,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {
-                    "type": "base64",
-                    "media_type": "image/png",
-                    "data": img_b64
-                }},
-                {"type": "text", "text": prompt}
-            ]
-        }]
+        messages=[{"role": "user", "content": content}]
     )
 
     raw = response.content[0].text.strip()
@@ -406,10 +420,24 @@ def execute_actions(page, actions):
 
             elif act == "click":
                 if locator.is_visible(timeout=1000):
+                    url_before = page.url
                     locator.click()
-                    time.sleep(2)
-                    log.info("  [OK] submitted: {}".format(selector[:50]))
-                    submitted = True
+                    time.sleep(3)
+                    # Submit sach me hua ya nahi — verify karo
+                    page_text = ""
+                    try:
+                        page_text = page.inner_text("body", timeout=3000).lower()
+                    except Exception:
+                        pass
+                    success_words = ["thank you", "thanks", "message sent", "we'll be in touch",
+                                     "we have received", "submitted successfully", "your message",
+                                     "successfully sent", "received your", "get back to you"]
+                    url_changed = page.url != url_before
+                    if any(w in page_text for w in success_words) or url_changed:
+                        submitted = True
+                        log.info("  [OK] submit confirmed: {}".format(selector[:50]))
+                    else:
+                        log.warning("  [??] clicked but NO confirmation: {}".format(selector[:50]))
 
         except Exception as e:
             log.warning("  [--] {}: {} -> {}".format(act, selector[:50], e))
@@ -453,10 +481,10 @@ def main():
             )
         )
 
-        # Block images/fonts/css for speed
+        # Block sirf images/media for speed — CSS/JS chalne do (warna form submit toot jaata hai)
         pg = context.new_page()
         pg.route("**/*", lambda route: route.abort()
-            if route.request.resource_type in ("image", "media", "font", "stylesheet")
+            if route.request.resource_type in ("image", "media")
             else route.continue_())
 
         for row_idx, website_raw in to_process:
@@ -512,6 +540,12 @@ def main():
                 # Screenshot AFTER submit — confirmation page dikhega
                 try:
                     import re, os
+                    # submit ke baad page settle hone do (redirect / thank-you page)
+                    try:
+                        pg.wait_for_load_state("networkidle", timeout=8000)
+                    except Exception:
+                        pass
+                    time.sleep(2)
                     safe_name = re.sub(r'[^a-zA-Z0-9]', '_', website)[:50]
                     os.makedirs("screenshots/after_submit", exist_ok=True)
                     screenshot_path = "screenshots/after_submit/{}.png".format(safe_name)
