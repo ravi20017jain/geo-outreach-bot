@@ -41,11 +41,16 @@ MESSAGE = "Hi,\n\nWhen your clients' buyers ask ChatGPT or Perplexity for recomm
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
-CONTACT_KEYWORDS = ["contact", "contact-us", "contactus", "get-in-touch", "getintouch",
-                    "reach-us", "reachus", "write-to-us", "get-started", "getstarted",
-                    "enquiry", "enquire", "inquiry", "inquire", "lets-talk", "let-s-talk",
-                    "work-with-us", "hire-us", "start-project", "request-quote", "quote",
-                    "book-a-call", "schedule", "consultation", "talk-to-us", "connect"]
+CONTACT_KEYWORDS = ["contact", "contact-us", "contactus", "contact-form", "get-in-touch",
+                    "getintouch", "reach-us", "reachus", "reach-out", "write-to-us",
+                    "get-started", "getstarted", "start-here", "enquiry", "enquire",
+                    "enquiries", "inquiry", "inquire", "lets-talk", "let-s-talk", "lets-connect",
+                    "work-with-us", "hire-us", "hire", "start-project", "start-a-project",
+                    "request-quote", "request-a-quote", "get-a-quote", "get-quote", "quote",
+                    "book-a-call", "book-call", "book-a-consultation", "book-consultation",
+                    "free-consultation", "free-audit", "free-quote", "schedule", "schedule-a-call",
+                    "consultation", "talk-to-us", "connect", "connect-with-us", "say-hello",
+                    "hello", "support", "help", "get-in-touch-with-us", "contact-sales"]
 
 # ------------------------------------------
 #  LOGGING
@@ -129,9 +134,11 @@ def dismiss_cookie_banner(page):
     """Cookie consent / popup banner dhundh kar accept/close karo —
     warna bahut si sites pe form block ho jaata hai."""
     # Common accept button texts (lowercase me match karenge)
-    accept_texts = ["accept all", "accept cookies", "accept", "i agree", "agree",
-                    "got it", "allow all", "allow cookies", "ok", "i accept",
-                    "continue", "understand", "consent", "yes, i agree"]
+    accept_texts = ["accept all", "accept all cookies", "accept cookies", "accept",
+                    "i agree", "agree", "agree & continue", "got it", "allow all",
+                    "allow cookies", "allow", "ok", "okay", "i accept", "accept & close",
+                    "continue", "i understand", "understand", "consent", "yes, i agree",
+                    "close", "dismiss", "no problem", "sounds good"]
     try:
         buttons = page.locator("button, a, input[type='button'], input[type='submit']").all()
         for btn in buttons[:40]:  # pehle 40 hi dekho (speed)
@@ -157,6 +164,20 @@ def dismiss_cookie_banner(page):
 
 def find_contact_page(page, base_url):
     current_url = page.url
+
+    # Page ko poora load hone do — JS-heavy sites pe links late aate hain
+    try:
+        page.wait_for_load_state("networkidle", timeout=6000)
+    except Exception:
+        pass
+    # Thoda scroll karo taaki lazy-loaded footer/nav links bhi aa jayein
+    try:
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(1)
+        page.evaluate("window.scrollTo(0, 0)")
+        time.sleep(0.5)
+    except Exception:
+        pass
 
     # Step 1: Scan links — click FIRST match only, then return immediately
     try:
@@ -355,6 +376,7 @@ Rules:
 - For checkboxes (terms/agree/consent/privacy) use "check".
 - REQUIRED checkbox groups (marked with * like "Services", "Interested in", "Budget"): you MUST select at least one option, else the form won't submit. Prefer an SEO / digital-marketing / "Google SEO" / "search" related option if available; otherwise pick the first reasonable option. Use "check" for it.
 - For the submit button use "click" — include it LAST. Pick the form's actual submit button (type="submit" inside the contact form), not a search or login button.
+- COMMON FIELDS: fill phone/mobile with the phone, website/url with our site, subject/topic with a short subject like "Partnership enquiry". For dropdowns/select (subject, service, "how did you hear", country), use "select" and pick the most relevant option (e.g. SEO/marketing/general enquiry); if unsure pick the first non-empty option.
 - Message field: use the FULL message text provided
 - Return ONLY JSON, no markdown, no explanation""".format(
         website=website,
@@ -476,7 +498,12 @@ def execute_actions(page, actions):
                                      "contacting us", "be in touch", "form submitted", "sent successfully",
                                      "we'll get back", "message has been sent", "successfully submitted",
                                      "your submission", "appreciate you", "has been received",
-                                     "will respond", "soon as possible", "form was submitted"]
+                                     "will respond", "soon as possible", "form was submitted",
+                                     "message received", "we received", "submission received",
+                                     "we'll reach out", "reach out to you", "talk to you soon",
+                                     "we will contact", "request received", "got your message",
+                                     "ticket has been", "enquiry received", "inquiry received",
+                                     "we'll respond", "in touch shortly", "received and"]
                     # Click ke baad: captcha aaye to solve karo, phir confirmation dhundo.
                     confirmed = False
                     captcha_done = False
