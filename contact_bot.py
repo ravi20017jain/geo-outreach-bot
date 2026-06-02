@@ -320,8 +320,9 @@ Return ONLY a JSON array of actions. Each action:
 
 Rules:
 - Only include fields that exist in the HTML
+- IMPORTANT: Only fill an ACTUAL CONTACT/ENQUIRY form. Do NOT fill search boxes (input name="s", role="search"), login forms (name="log"/"pwd"/"username"/"password"), or newsletter-only email boxes. If there is no real contact form, return an empty array [].
 - For checkboxes (terms/agree/consent/privacy) use "check"
-- For submit button use "click" — include it last
+- For the submit button use "click" — include it LAST. Pick the form's actual submit button (type="submit" inside the contact form), not a search or login button.
 - Message field: use the FULL message text provided
 - Return ONLY JSON, no markdown, no explanation""".format(
         website=website,
@@ -405,15 +406,30 @@ def execute_actions(page, actions):
             elif act == "click":
                 if locator.is_visible(timeout=1000):
                     url_before = page.url
-                    locator.click()
+                    # Submit ko reliable banane ke liye: pehle normal click,
+                    # phir zaroorat pade to JS click. WordPress/AJAX forms ke liye.
+                    try:
+                        locator.scroll_into_view_if_needed(timeout=2000)
+                    except Exception:
+                        pass
+                    try:
+                        locator.click(timeout=5000)
+                    except Exception:
+                        # normal click fail -> JS se force click
+                        try:
+                            locator.evaluate("el => el.click()")
+                        except Exception:
+                            pass
                     success_words = ["thank you", "thanks", "message sent", "we'll be in touch",
                                      "we have received", "submitted successfully", "your message",
                                      "successfully sent", "received your", "get back to you",
-                                     "contacting us", "be in touch", "form submitted", "sent successfully"]
+                                     "contacting us", "be in touch", "form submitted", "sent successfully",
+                                     "we'll get back", "message has been sent", "successfully submitted",
+                                     "your submission", "appreciate you"]
                     # Click ke baad: captcha aaye to solve karo, phir confirmation dhundo.
-                    # ~60 sec tak check karo (post-submit captcha 1-2 min le sakta hai).
                     confirmed = False
                     captcha_done = False
+                    retried_click = False
                     for i in range(20):
                         time.sleep(3)
                         # Har check me captcha dekho — agar submit ke baad aaya ho
@@ -421,7 +437,6 @@ def execute_actions(page, actions):
                             try:
                                 if solve_captcha(page, page.url):
                                     captcha_done = True
-                                    # captcha solve hua to dobara submit click karne ki koshish
                                     try:
                                         locator.click(timeout=2000)
                                     except Exception:
@@ -438,6 +453,15 @@ def execute_actions(page, actions):
                         if any(w in page_text for w in success_words) or url_changed:
                             confirmed = True
                             break
+                        # 9 sec baad bhi kuch nahi hua aur button abhi bhi dikh raha hai
+                        # to ek baar JS-click se dobara try karo (AJAX forms ke liye)
+                        if i == 3 and not retried_click:
+                            retried_click = True
+                            try:
+                                if locator.is_visible(timeout=1000):
+                                    locator.evaluate("el => el.click()")
+                            except Exception:
+                                pass
                     if confirmed:
                         submitted = True
                         log.info("  [OK] submit confirmed: {}".format(selector[:50]))
@@ -535,7 +559,16 @@ def main():
                 except Exception as e:
                     log.warning("  [Screenshot] Failed: {}".format(e))
 
-                status = "submitted" if submitted else "filled_not_submitted"
+                # Status — teen clear cases:
+                # - kuch fill nahi hua / form mila hi nahi -> no_form_found (skip, manual zaroori nahi)
+                # - fill hua par submit confirm nahi -> filled_not_submitted (manual try)
+                # - submit confirm -> submitted
+                if submitted:
+                    status = "submitted"
+                elif not filled:
+                    status = "no_form_found"
+                else:
+                    status = "filled_not_submitted"
 
                 # Screenshot AFTER submit — confirmation page dikhega
                 try:
@@ -554,9 +587,15 @@ def main():
                 except Exception as e:
                     log.warning("  [Screenshot] Failed: {}".format(e))
 
+                if submitted:
+                    note_text = "OK"
+                elif not filled:
+                    note_text = "No form on page (manual not needed)"
+                else:
+                    note_text = "Submit failed - try manually"
                 update_sheet_row(
                     ws, row_idx, status,
-                    notes="OK" if submitted else "Submit failed",
+                    notes=note_text,
                     fields_filled=", ".join(filled),
                     ai_actions=str(len(actions))
                 )
