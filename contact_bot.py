@@ -125,6 +125,36 @@ def normalise_url(url):
     return url.rstrip("/")
 
 
+def dismiss_cookie_banner(page):
+    """Cookie consent / popup banner dhundh kar accept/close karo —
+    warna bahut si sites pe form block ho jaata hai."""
+    # Common accept button texts (lowercase me match karenge)
+    accept_texts = ["accept all", "accept cookies", "accept", "i agree", "agree",
+                    "got it", "allow all", "allow cookies", "ok", "i accept",
+                    "continue", "understand", "consent", "yes, i agree"]
+    try:
+        buttons = page.locator("button, a, input[type='button'], input[type='submit']").all()
+        for btn in buttons[:40]:  # pehle 40 hi dekho (speed)
+            try:
+                txt = (btn.inner_text(timeout=300) or "").strip().lower()
+            except Exception:
+                continue
+            if not txt or len(txt) > 30:
+                continue
+            if any(t == txt or (t in txt and len(txt) < 25) for t in accept_texts):
+                try:
+                    if btn.is_visible(timeout=500):
+                        btn.click(timeout=2000)
+                        log.info("  [Cookie] dismissed: {}".format(txt[:25]))
+                        time.sleep(1)
+                        return True
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return False
+
+
 def find_contact_page(page, base_url):
     current_url = page.url
 
@@ -321,7 +351,9 @@ Return ONLY a JSON array of actions. Each action:
 Rules:
 - Only include fields that exist in the HTML
 - IMPORTANT: Only fill an ACTUAL CONTACT/ENQUIRY form. Do NOT fill search boxes (input name="s", role="search"), login forms (name="log"/"pwd"/"username"/"password"), or newsletter-only email boxes. If there is no real contact form, return an empty array [].
-- For checkboxes (terms/agree/consent/privacy) use "check"
+- HUMAN-CHECK QUESTIONS: If the form has a simple text question to prove you're human (e.g. "which is bigger, 2 or 8?", "what is 3+4?", "type the word yes", "what color is the sky?"), SOLVE it and fill the answer in that field. Answer with the simplest correct value (e.g. "8", "7", "yes", "blue").
+- For checkboxes (terms/agree/consent/privacy) use "check".
+- REQUIRED checkbox groups (marked with * like "Services", "Interested in", "Budget"): you MUST select at least one option, else the form won't submit. Prefer an SEO / digital-marketing / "Google SEO" / "search" related option if available; otherwise pick the first reasonable option. Use "check" for it.
 - For the submit button use "click" — include it LAST. Pick the form's actual submit button (type="submit" inside the contact form), not a search or login button.
 - Message field: use the FULL message text provided
 - Return ONLY JSON, no markdown, no explanation""".format(
@@ -346,11 +378,29 @@ Rules:
         }})
     content.append({"type": "text", "text": prompt})
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": content}]
-    )
+    # API call retry ke saath — 529 (overloaded) ya temporary error aaye to
+    # bot khud 4 baar koshish kare, beech me badhta hua wait (5s, 15s, 30s)
+    response = None
+    waits = [5, 15, 30, 45]
+    for attempt in range(4):
+        try:
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": content}]
+            )
+            break
+        except Exception as e:
+            msg = str(e)
+            # 529=overloaded, 429=rate limit, 500/503=server — yeh sab temporary hain
+            if any(code in msg for code in ("529", "429", "500", "503", "overloaded", "timeout")):
+                w = waits[attempt]
+                log.warning("  [AI] API busy ({}), retry in {}s...".format(msg[:40], w))
+                time.sleep(w)
+                continue
+            raise  # baaki errors (jaise 400) turant raise karo
+    if response is None:
+        raise Exception("AI API failed after 4 retries (overloaded)")
 
     raw = response.content[0].text.strip()
     if "```" in raw:
@@ -425,7 +475,8 @@ def execute_actions(page, actions):
                                      "successfully sent", "received your", "get back to you",
                                      "contacting us", "be in touch", "form submitted", "sent successfully",
                                      "we'll get back", "message has been sent", "successfully submitted",
-                                     "your submission", "appreciate you"]
+                                     "your submission", "appreciate you", "has been received",
+                                     "will respond", "soon as possible", "form was submitted"]
                     # Click ke baad: captcha aaye to solve karo, phir confirmation dhundo.
                     confirmed = False
                     captcha_done = False
@@ -453,13 +504,15 @@ def execute_actions(page, actions):
                         if any(w in page_text for w in success_words) or url_changed:
                             confirmed = True
                             break
-                        # 9 sec baad bhi kuch nahi hua aur button abhi bhi dikh raha hai
-                        # to ek baar JS-click se dobara try karo (AJAX forms ke liye)
+                        # 9 sec baad bhi kuch nahi hua to alag tarike try karo:
+                        # WordPress AJAX forms ke liye — JS click + Enter key
                         if i == 3 and not retried_click:
                             retried_click = True
                             try:
                                 if locator.is_visible(timeout=1000):
                                     locator.evaluate("el => el.click()")
+                                    time.sleep(1)
+                                    locator.press("Enter")
                             except Exception:
                                 pass
                     if confirmed:
@@ -523,6 +576,7 @@ def main():
             try:
                 pg.goto(website, timeout=30000, wait_until="domcontentloaded")
                 time.sleep(1)
+                dismiss_cookie_banner(pg)   # cookie banner hata do warna form block hota hai
 
                 contact_found = find_contact_page(pg, website)
                 if not contact_found:
@@ -531,6 +585,7 @@ def main():
                     continue
 
                 time.sleep(1)
+                dismiss_cookie_banner(pg)   # contact page pe bhi check karo
 
                 # Solve captcha if present
                 solve_captcha(pg, website)
