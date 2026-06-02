@@ -323,15 +323,32 @@ def solve_captcha(page, website):
 # ------------------------------------------
 
 def get_page_html(page):
+    def grab(frame):
+        try:
+            return frame.evaluate("""() => {
+                const els = document.querySelectorAll(
+                    'input, textarea, button, select, label, form'
+                );
+                return Array.from(els).map(el => el.outerHTML).join('\\n');
+            }""")
+        except Exception:
+            return ""
+    parts = []
     try:
-        return page.evaluate("""() => {
-            const els = document.querySelectorAll(
-                'input, textarea, button, select, label, form'
-            );
-            return Array.from(els).map(el => el.outerHTML).join('\\n');
-        }""")[:8000]
+        parts.append(grab(page))
     except Exception:
-        return ""
+        pass
+    # iframe ke andar ka form bhi lo — GoDaddy/Wix/HubSpot builders iframe use karte hain
+    try:
+        for fr in page.frames:
+            if fr == page.main_frame:
+                continue
+            h = grab(fr)
+            if h and ("input" in h or "form" in h):
+                parts.append(h)
+    except Exception:
+        pass
+    return "\n".join(p for p in parts if p)[:18000]
 
 
 def ask_claude(page, website):
@@ -613,6 +630,24 @@ def main():
 
                 time.sleep(1)
                 dismiss_cookie_banner(pg)   # contact page pe bhi check karo
+
+                # Form ke load hone ka intezaar — GoDaddy/Wix/Weebly jaise builders
+                # form ko JS se late inject karte hain. Scroll + wait karo.
+                try:
+                    pg.wait_for_load_state("networkidle", timeout=6000)
+                except Exception:
+                    pass
+                try:
+                    # form/input dikhne ka intezaar (max 8 sec)
+                    pg.wait_for_selector("form, input[type='email'], input[type='text'], textarea",
+                                         timeout=8000)
+                except Exception:
+                    pass
+                try:
+                    pg.evaluate("window.scrollTo(0, document.body.scrollHeight/2)")
+                    time.sleep(1.5)
+                except Exception:
+                    pass
 
                 # Solve captcha if present
                 solve_captcha(pg, website)
