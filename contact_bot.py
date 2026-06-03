@@ -29,15 +29,15 @@ CAPTCHA_API_KEY     = os.environ["CAPTCHA_API_KEY"]
 GOOGLE_SHEET_ID     = os.environ["GOOGLE_SHEET_ID"]       # Sheet URL se ID
 GOOGLE_CREDS_JSON   = os.environ["GOOGLE_CREDS_JSON"]     # Service account JSON
 
-FIRST_NAME  = "Salman"
-LAST_NAME   = "Khan"
-FULL_NAME   = "Salman Khan"
+FIRST_NAME  = "Ray"
+LAST_NAME   = "Charles"
+FULL_NAME   = "Ray Charles"
 COMPANY     = "Zevahit"
 EMAIL       = "sales@zevahit.com"
-PHONE       = "+918109201842"
-SUBJECT     = "Is Your Client's Brand Invisible to ChatGPT?"
+PHONE       = "+17162220972"
+SUBJECT     = "When AI gets asked best SEO agency in NJ, is your name in the answer?"
 
-MESSAGE = "Hi,\n\nWhen your clients' buyers ask ChatGPT or Perplexity for recommendations in their niche - do their brands show up?\n\nFor most, not yet. We help SEO agencies fix that with GEO (Generative Engine Optimization) - getting client brands cited by ChatGPT, Gemini & Perplexity through guest posts on high-authority sites. You can offer it as your own; we work behind the scenes.\n\nWant me to send over a quick sample?\n\nSalman\nZevahit.com\nClient Reviews: https://clutch.co/profile/zevahit#reviews"
+MESSAGE = "Hi,\n\nMore prospects now ask ChatGPT or Google's AI Overview for the \"best SEO agency in New Jersey\" - and start with whoever gets named. Those answers pull from curated listicles on trusted publishers.\n\nWe're finalizing one on OCNJ Daily (an NJ publisher) and can include your agency - brand visibility, not just a link.\n\n- Brand mention - $100\n- Mention + link - $200\n\nReply and I'll share the publisher details and draft. No pressure either way.\n\nWarm regards,\nRay\nZevahit.com\nReviews: https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
@@ -352,14 +352,9 @@ def get_page_html(page):
 
 
 def ask_claude(page, website):
-    """Claude se form actions lao (sirf HTML — image nahi, API cost bachane ke liye)."""
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-    # Image Claude ko NAHI bhejni (cost bachane ke liye) — sirf HTML kaafi hai
-    img_b64 = ""
-
+    """Claude se form actions lao (sirf HTML — image nahi)."""
     page_html = get_page_html(page)
-    # HTML bahut bada ho to trim karo — warna API 400 deta hai
+    # HTML bahut bada ho to trim karo
     if len(page_html) > 50000:
         page_html = page_html[:50000]
 
@@ -408,40 +403,32 @@ Rules:
         message=MESSAGE
     )
 
-    content = []
-    if img_b64:  # screenshot mila tabhi image bhejo
-        content.append({"type": "image", "source": {
-            "type": "base64",
-            "media_type": "image/png",
-            "data": img_b64
-        }})
-    content.append({"type": "text", "text": prompt})
-
-    # API call retry ke saath — 529 (overloaded) ya temporary error aaye to
-    # bot khud 4 baar koshish kare, beech me badhta hua wait (5s, 15s, 30s)
-    response = None
+    # Claude API call retry ke saath — 529 (overloaded) ya temporary error aaye to
+    # bot khud 4 baar koshish kare, beech me badhta hua wait
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    raw = None
     waits = [5, 15, 30, 45]
     for attempt in range(4):
         try:
             response = client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=2000,
-                messages=[{"role": "user", "content": content}]
+                messages=[{"role": "user", "content": prompt}]
             )
+            raw = response.content[0].text.strip()
             break
         except Exception as e:
             msg = str(e)
-            # 529=overloaded, 429=rate limit, 500/503=server — yeh sab temporary hain
+            # 529=overloaded, 429=rate limit, 500/503=server — yeh temporary hain
             if any(code in msg for code in ("529", "429", "500", "503", "overloaded", "timeout")):
                 w = waits[attempt]
                 log.warning("  [AI] API busy ({}), retry in {}s...".format(msg[:40], w))
                 time.sleep(w)
                 continue
-            raise  # baaki errors (jaise 400) turant raise karo
-    if response is None:
-        raise Exception("AI API failed after 4 retries (overloaded)")
+            raise
+    if raw is None:
+        raise Exception("Claude API failed after 4 retries")
 
-    raw = response.content[0].text.strip()
     if "```" in raw:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
