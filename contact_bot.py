@@ -139,16 +139,20 @@ def dismiss_cookie_banner(page):
                     "allow cookies", "allow", "ok", "okay", "i accept", "accept & close",
                     "continue", "i understand", "understand", "consent", "yes, i agree",
                     "close", "dismiss", "no problem", "sounds good"]
+    # button/a/input ke saath div, span, role=button bhi — kai sites custom buttons use karti hain
+    selectors = ("button, a, input[type='button'], input[type='submit'], "
+                 "[role='button'], div[onclick], span[onclick], div, span")
     try:
-        buttons = page.locator("button, a, input[type='button'], input[type='submit']").all()
-        for btn in buttons[:40]:  # pehle 40 hi dekho (speed)
+        buttons = page.locator(selectors).all()
+        for btn in buttons[:80]:
             try:
                 txt = (btn.inner_text(timeout=300) or "").strip().lower()
             except Exception:
                 continue
-            if not txt or len(txt) > 30:
+            if not txt or len(txt) > 20:
                 continue
-            if any(t == txt or (t in txt and len(txt) < 25) for t in accept_texts):
+            # exact match ya bahut chhote text me match (taaki "ok" galat jagah na ho)
+            if any(t == txt for t in accept_texts):
                 try:
                     if btn.is_visible(timeout=500):
                         btn.click(timeout=2000)
@@ -405,7 +409,7 @@ Rules:
 
     # Claude API call retry ke saath — 529 (overloaded) ya temporary error aaye to
     # bot khud 4 baar koshish kare, beech me badhta hua wait
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=60.0)  # 60s timeout, hang na ho
     raw = None
     waits = [5, 15, 30, 45]
     for attempt in range(4):
@@ -596,6 +600,9 @@ def main():
 
         # Block sirf images/media for speed — CSS/JS chalne do (warna form submit toot jaata hai)
         pg = context.new_page()
+        # Default timeouts — taaki koi bhi action hamesha ke liye atke nahi
+        pg.set_default_timeout(20000)            # har action max 20 sec
+        pg.set_default_navigation_timeout(30000) # page load max 30 sec
         pg.route("**/*", lambda route: route.abort()
             if route.request.resource_type in ("image", "media")
             else route.continue_())
