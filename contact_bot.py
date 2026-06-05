@@ -357,6 +357,23 @@ def get_page_html(page):
 
 def ask_claude(page, website):
     """Claude se form actions lao (sirf HTML — image nahi)."""
+    # JS-heavy sites (React/Vue) pe form late load hota hai — uske aane ka wait karo
+    try:
+        page.wait_for_load_state("networkidle", timeout=8000)
+    except Exception:
+        pass
+    # form/input dikhne ka intezaar — max 12 sec, beech me scroll bhi
+    for _ in range(4):
+        try:
+            page.wait_for_selector("input, textarea, select", timeout=3000)
+            break
+        except Exception:
+            try:
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight/2)")
+            except Exception:
+                pass
+            time.sleep(1)
+
     page_html = get_page_html(page)
     # HTML bahut bada ho to trim karo
     if len(page_html) > 50000:
@@ -613,14 +630,14 @@ def main():
 
             try:
                 pg.goto(website, timeout=30000, wait_until="domcontentloaded")
-                time.sleep(1)
+                time.sleep(2)   # JS load hone do
                 dismiss_cookie_banner(pg)   # cookie banner hata do warna form block hota hai
 
                 contact_found = find_contact_page(pg, website)
+                # Agar contact page na mile, tab bhi haar mat maano —
+                # ho sakta hai form homepage/footer pe ho. Aage Claude ko dekhne do.
                 if not contact_found:
-                    log.warning("  No contact page")
-                    update_sheet_row(ws, row_idx, "no_contact_page", "No contact page found")
-                    continue
+                    log.info("  No separate contact page - checking current page for form")
 
                 time.sleep(1)
                 dismiss_cookie_banner(pg)   # contact page pe bhi check karo
