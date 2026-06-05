@@ -35,9 +35,9 @@ FULL_NAME   = "Ray Charles"
 COMPANY     = "Zevahit"
 EMAIL       = "sales@zevahit.com"
 PHONE       = "+17162220972"
-SUBJECT     = "Top Dentists in Somers Point - Limited Featured Spots Available"
+SUBJECT     = "Top Law Firms in Ocean City – Limited Featured Spots Available"
 
-MESSAGE = "Hi,\n\nQuick one - we're finalizing \"Top Dentists in Somers Point\" on OCNJ Daily (a trusted local South Jersey publisher). The article goes live on June 12, and only a couple of spots are left:\n\n- Brand mention - $100\n- Mention + backlink - $200\n\nWorth considering because it's a relevance-rich local citation and a citable listicle that AI engines like ChatGPT and Google AI Overviews often reference when people search for the best dentists in Somers Point. It's an opportunity to be featured where both Google and AI-driven search are looking.\n\nReply YES and I'll send full details to reserve your spot before the 12th.\n\nWarm Regards,\nRay\nZevahit.com\nClient reviews: https://clutch.co/profile/zevahit#reviews"
+MESSAGE = "Hi,\n\nQuick one - we're finalizing \"Top Law Firms in Ocean City\" on OCNJ Daily (a trusted local South Jersey publisher). The article goes live on June 12, and only a couple of spots are left:\n\n- Brand mention - $100\n- Mention + backlink - $200\n\nWorth considering because it's a relevance-rich local citation and a citable listicle that AI engines like ChatGPT and Google AI Overviews often reference when people search for the best law firms in Ocean City. It's an opportunity to be featured where both Google and AI-driven search are looking.\n\nReply YES and I'll send full details to reserve your spot before the 12th.\n\nWarm Regards,\nRay\nZevahit.com\nClient reviews: https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
