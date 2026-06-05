@@ -3,7 +3,7 @@
 AI-Powered Contact Form Bot
 - Claude Vision API: form analyze karta hai
 - 2captcha: captcha automatically solve karta hai
-- Google Sheets: real-time status update
+- Google Sheets: real-time status update (Dynamic City + Static Niche)
 - GitHub Actions: scheduled cloud run
 """
 import os
@@ -35,9 +35,11 @@ FULL_NAME   = "Ray Charles"
 COMPANY     = "Zevahit"
 EMAIL       = "sales@zevahit.com"
 PHONE       = "+17162220972"
-SUBJECT     = "Top Law Firms in Ocean City – Limited Featured Spots Available"
 
-MESSAGE = "Hi,\n\nQuick one - we're finalizing \"Top Law Firms in Ocean City\" on OCNJ Daily (a trusted local South Jersey publisher). The article goes live on June 12, and only a couple of spots are left:\n\n- Brand mention - $100\n- Mention + backlink - $200\n\nWorth considering because it's a relevance-rich local citation and a citable listicle that AI engines like ChatGPT and Google AI Overviews often reference when people search for the best law firms in Ocean City. It's an opportunity to be featured where both Google and AI-driven search are looking.\n\nReply YES and I'll send full details to reserve your spot before the 12th.\n\nWarm Regards,\nRay\nZevahit.com\nClient reviews: https://clutch.co/profile/zevahit#reviews"
+# Templates mein Niche (Law Firm) strictly static hai, sirf {city} dynamic hai
+SUBJECT_TEMPLATE = "Top Law Firm in {city} - Limited Featured Spots Available"
+
+MESSAGE_TEMPLATE = "Hi,\n\nQuick one - we're finalizing \"Top Law Firm in {city}\" on OCNJ Daily (a trusted local South Jersey publisher). The article goes live on June 12, and only a couple of spots are left:\n\n- Brand mention - $100\n- Mention + backlink - $200\n\nWorth considering because it's a relevance-rich local citation and a citable listicle that AI engines like ChatGPT and Google AI Overviews often reference when people search for the best Law Firm in {city}. It's an opportunity to be featured where both Google and AI-driven search are looking.\n\nReply YES and I'll send full details to reserve your spot before the 12th.\n\nWarm Regards,\nRay\nZevahit.com\nClient reviews: https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
@@ -68,7 +70,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------
 
 def init_sheets():
-    """Google Sheets connection initialize karo."""
+    """Google Sheets connection initialize karo aur city column set karo."""
     creds_dict = json.loads(GOOGLE_CREDS_JSON)
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -80,12 +82,12 @@ def init_sheets():
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(GOOGLE_SHEET_ID)
 
-    # Websites sheet
+    # Websites sheet check karo ya banao (7 Columns ke saath)
     try:
         ws = sh.worksheet("websites")
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet("websites", rows=1000, cols=6)
-        ws.update("A1:F1", [["website", "status", "submitted_at", "notes", "fields_filled", "ai_actions"]])
+        ws = sh.add_worksheet("websites", rows=1000, cols=7)
+        ws.update("A1:G1", [["website", "city", "status", "submitted_at", "notes", "fields_filled", "ai_actions"]])
 
     return ws
 
@@ -96,27 +98,35 @@ def get_all_rows(ws):
 
 
 def update_sheet_row(ws, row_num, status, notes="", fields_filled="", ai_actions=""):
-    """Single row update karo - row_num is 1-based (header = row 1, data starts row 2)."""
+    """Headers scan karke bina data mix kiye sahi columns update karega."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # row_num + 1 because header is row 1
     excel_row = row_num + 1
-    ws.update("B{}:F{}".format(excel_row, excel_row),
-              [[status, now, notes, fields_filled, ai_actions]])
+    
+    headers = ws.row_values(1)
+    try:
+        # Dynamic check taaki city column ki wajah se shift na ho data
+        status_idx = headers.index("status")
+        start_col = chr(65 + status_idx)  # Column letter automatically find karega (e.g. 'C')
+        end_col = chr(65 + status_idx + 4)
+        ws.update("{}{}:{}{}".format(start_col, excel_row, end_col, excel_row),
+                  [[status, now, notes, fields_filled, ai_actions]])
+    except ValueError:
+        # Fallback agar auto match na ho
+        ws.update("C{}:G{}".format(excel_row, excel_row),
+                  [[status, now, notes, fields_filled, ai_actions]])
+        
     log.info("  [Sheets] Row {} -> {}".format(excel_row, status))
 
 
 def get_pending_rows(ws):
-    """
-    Sirf pending rows return karo (status empty ya error).
-    Returns list of (row_index_1based, website_url)
-    """
+    """Poori row data return karega taaki loop mein city access ho sake."""
     rows = ws.get_all_records()
     pending = []
     for i, row in enumerate(rows):
         url     = str(row.get("website", "")).strip()
         status  = str(row.get("status", "")).strip().lower()
         if url and status not in ("submitted",):
-            pending.append((i + 1, url))   # i+1 = 1-based data row index
+            pending.append((i + 1, row))   # Full row dict pass ho rahi hai
     return pending
 
 # ------------------------------------------
@@ -131,15 +141,11 @@ def normalise_url(url):
 
 
 def dismiss_cookie_banner(page):
-    """Cookie consent / popup banner dhundh kar accept/close karo -
-    warna bahut si sites pe form block ho jaata hai."""
-    # Common accept button texts (lowercase me match karenge)
     accept_texts = ["accept all", "accept all cookies", "accept cookies", "accept",
                     "i agree", "agree", "agree & continue", "got it", "allow all",
                     "allow cookies", "allow", "ok", "okay", "i accept", "accept & close",
                     "continue", "i understand", "understand", "consent", "yes, i agree",
                     "close", "dismiss", "no problem", "sounds good"]
-    # button/a/input ke saath div, span, role=button bhi - kai sites custom buttons use karti hain
     selectors = ("button, a, input[type='button'], input[type='submit'], "
                  "[role='button'], div[onclick], span[onclick], div, span")
     try:
@@ -151,7 +157,6 @@ def dismiss_cookie_banner(page):
                 continue
             if not txt or len(txt) > 20:
                 continue
-            # exact match ya bahut chhote text me match (taaki "ok" galat jagah na ho)
             if any(t == txt for t in accept_texts):
                 try:
                     if btn.is_visible(timeout=500):
@@ -169,12 +174,10 @@ def dismiss_cookie_banner(page):
 def find_contact_page(page, base_url):
     current_url = page.url
 
-    # Page ko poora load hone do - JS-heavy sites pe links late aate hain
     try:
         page.wait_for_load_state("networkidle", timeout=6000)
     except Exception:
         pass
-    # Thoda scroll karo taaki lazy-loaded footer/nav links bhi aa jayein
     try:
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(1)
@@ -183,7 +186,6 @@ def find_contact_page(page, base_url):
     except Exception:
         pass
 
-    # Step 1: Scan links - click FIRST match only, then return immediately
     try:
         links = page.locator("a").all()
         for link in links:
@@ -194,10 +196,8 @@ def find_contact_page(page, base_url):
                     link_text = (link.inner_text(timeout=500) or "").lower()
                 except Exception:
                     pass
-                # href ya link ke text - dono me keyword check karo
                 if any(kw in href.lower() for kw in CONTACT_KEYWORDS) or \
                    any(kw.replace("-", " ") in link_text for kw in CONTACT_KEYWORDS):
-                    # Skip if already on contact page
                     if any(kw in current_url.lower() for kw in CONTACT_KEYWORDS):
                         log.info("  Already on contact page: {}".format(current_url))
                         return True
@@ -206,20 +206,18 @@ def find_contact_page(page, base_url):
                         link.click()
                         page.wait_for_load_state("domcontentloaded", timeout=10000)
                     except Exception:
-                        pass  # timeout ho to bhi aage badho
+                        pass
                     time.sleep(0.5)
-                    return True  # immediately return - no loop
+                    return True
             except Exception:
                 pass
     except Exception:
         pass
 
-    # Step 2: Already on contact page check
     if any(kw in current_url.lower() for kw in CONTACT_KEYWORDS):
         log.info("  Already on contact page: {}".format(current_url))
         return True
 
-    # Step 3: Guess common paths
     for kw in CONTACT_KEYWORDS:
         candidate = "{}/{}".format(base_url, kw)
         try:
@@ -237,27 +235,18 @@ def find_contact_page(page, base_url):
 # ------------------------------------------
 
 def solve_captcha(page, website):
-    """
-    Detect aur automatically solve karo:
-    - reCAPTCHA v2
-    - hCaptcha
-    - Cloudflare Turnstile
-    """
     solver = twocaptcha.TwoCaptcha(CAPTCHA_API_KEY)
 
-    # --- reCAPTCHA v2 ---
     try:
         frame = page.locator('iframe[src*="recaptcha"]').first
         if frame.is_visible(timeout=1000):
             src = frame.get_attribute("src") or ""
-            # Extract sitekey from iframe src
             sitekey = ""
             for part in src.split("&"):
                 if "k=" in part:
                     sitekey = part.split("k=")[1].split("&")[0]
                     break
             if not sitekey:
-                # Try from div
                 div = page.locator('.g-recaptcha').first
                 sitekey = div.get_attribute("data-sitekey") or ""
 
@@ -265,7 +254,6 @@ def solve_captcha(page, website):
                 log.info("  [CAPTCHA] reCAPTCHA detected, solving via 2captcha...")
                 result = solver.recaptcha(sitekey=sitekey, url=website)
                 token = result["code"]
-                # Inject token
                 page.evaluate("""(token) => {
                     document.getElementById('g-recaptcha-response').innerHTML = token;
                     if (typeof ___grecaptcha_cfg !== 'undefined') {
@@ -283,7 +271,6 @@ def solve_captcha(page, website):
     except Exception as e:
         log.debug("  reCAPTCHA solve attempt: {}".format(e))
 
-    # --- hCaptcha ---
     try:
         frame = page.locator('iframe[src*="hcaptcha.com"]').first
         if frame.is_visible(timeout=1000):
@@ -303,7 +290,6 @@ def solve_captcha(page, website):
     except Exception as e:
         log.debug("  hCaptcha solve attempt: {}".format(e))
 
-    # --- Cloudflare Turnstile ---
     try:
         div = page.locator('.cf-turnstile').first
         if div.is_visible(timeout=1000):
@@ -342,7 +328,6 @@ def get_page_html(page):
         parts.append(grab(page))
     except Exception:
         pass
-    # iframe ke andar ka form bhi lo - GoDaddy/Wix/HubSpot builders iframe use karte hain
     try:
         for fr in page.frames:
             if fr == page.main_frame:
@@ -355,14 +340,12 @@ def get_page_html(page):
     return "\n".join(p for p in parts if p)[:18000]
 
 
-def ask_claude(page, website):
-    """Claude se form actions lao (sirf HTML - image nahi)."""
-    # JS-heavy sites (React/Vue) pe form late load hota hai - uske aane ka wait karo
+def ask_claude(page, website, subject, message):
+    """Claude ko dynamic elements (subject/message) ke saath call karein."""
     try:
         page.wait_for_load_state("networkidle", timeout=8000)
     except Exception:
         pass
-    # form/input dikhne ka intezaar - max 12 sec, beech me scroll bhi
     for _ in range(4):
         try:
             page.wait_for_selector("input, textarea, select", timeout=3000)
@@ -375,7 +358,6 @@ def ask_claude(page, website):
             time.sleep(1)
 
     page_html = get_page_html(page)
-    # HTML bahut bada ho to trim karo
     if len(page_html) > 50000:
         page_html = page_html[:50000]
 
@@ -420,13 +402,11 @@ Rules:
         company=COMPANY,
         email=EMAIL,
         phone=PHONE,
-        subject=SUBJECT,
-        message=MESSAGE
+        subject=subject,
+        message=message
     )
 
-    # Claude API call retry ke saath - 529 (overloaded) ya temporary error aaye to
-    # bot khud 4 baar koshish kare, beech me badhta hua wait
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=60.0)  # 60s timeout, hang na ho
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=60.0)
     raw = None
     waits = [5, 15, 30, 45]
     for attempt in range(4):
@@ -440,7 +420,6 @@ Rules:
             break
         except Exception as e:
             msg = str(e)
-            # 529=overloaded, 429=rate limit, 500/503=server - yeh temporary hain
             if any(code in msg for code in ("529", "429", "500", "503", "overloaded", "timeout")):
                 w = waits[attempt]
                 log.warning("  [AI] API busy ({}), retry in {}s...".format(msg[:40], w))
@@ -503,8 +482,6 @@ def execute_actions(page, actions):
             elif act == "click":
                 if locator.is_visible(timeout=1000):
                     url_before = page.url
-                    # Submit ko reliable banane ke liye: pehle normal click,
-                    # phir zaroorat pade to JS click. WordPress/AJAX forms ke liye.
                     try:
                         locator.scroll_into_view_if_needed(timeout=2000)
                     except Exception:
@@ -512,7 +489,6 @@ def execute_actions(page, actions):
                     try:
                         locator.click(timeout=5000)
                     except Exception:
-                        # normal click fail -> JS se force click
                         try:
                             locator.evaluate("el => el.click()")
                         except Exception:
@@ -529,13 +505,11 @@ def execute_actions(page, actions):
                                      "we will contact", "request received", "got your message",
                                      "ticket has been", "enquiry received", "inquiry received",
                                      "we'll respond", "in touch shortly", "received and"]
-                    # Click ke baad: captcha aaye to solve karo, phir confirmation dhundo.
                     confirmed = False
                     captcha_done = False
                     retried_click = False
                     for i in range(20):
                         time.sleep(3)
-                        # Har check me captcha dekho - agar submit ke baad aaya ho
                         if not captcha_done:
                             try:
                                 if solve_captcha(page, page.url):
@@ -556,8 +530,6 @@ def execute_actions(page, actions):
                         if any(w in page_text for w in success_words) or url_changed:
                             confirmed = True
                             break
-                        # 9 sec baad bhi kuch nahi hua to alag tarike try karo:
-                        # WordPress AJAX forms ke liye - JS click + Enter key
                         if i == 3 and not retried_click:
                             retried_click = True
                             try:
@@ -583,7 +555,6 @@ def execute_actions(page, actions):
 # ------------------------------------------
 
 def main():
-    # Google Sheets init
     log.info("Connecting to Google Sheets...")
     ws = init_sheets()
 
@@ -594,12 +565,11 @@ def main():
         log.info("No pending sites. Done!")
         return
 
-    # Process only PROCESS_LIMIT sites per run
     to_process = pending[:PROCESS_LIMIT]
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,   # Cloud pe headless=True
+            headless=True,
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -615,41 +585,43 @@ def main():
             )
         )
 
-        # Block sirf images/media for speed - CSS/JS chalne do (warna form submit toot jaata hai)
         pg = context.new_page()
-        # Default timeouts - taaki koi bhi action hamesha ke liye atke nahi
-        pg.set_default_timeout(20000)            # har action max 20 sec
-        pg.set_default_navigation_timeout(30000) # page load max 30 sec
+        pg.set_default_timeout(20000)
+        pg.set_default_navigation_timeout(30000)
         pg.route("**/*", lambda route: route.abort()
             if route.request.resource_type in ("image", "media")
             else route.continue_())
 
-        for row_idx, website_raw in to_process:
+        for row_idx, row_data in to_process:
+            website_raw = row_data.get("website", "")
             website = normalise_url(website_raw)
-            log.info("\nOpening: {}".format(website))
+            
+            # Sheet se unique row ki city read karega, khali hone par fallback lagayega
+            city = str(row_data.get("city", "Somers Point")).strip() or "Somers Point"
+            
+            # Dynamic text allocation
+            current_subject = SUBJECT_TEMPLATE.format(city=city)
+            current_message = MESSAGE_TEMPLATE.format(city=city)
+
+            log.info("\nOpening: {} [City: {}]".format(website, city))
 
             try:
                 pg.goto(website, timeout=30000, wait_until="domcontentloaded")
-                time.sleep(2)   # JS load hone do
-                dismiss_cookie_banner(pg)   # cookie banner hata do warna form block hota hai
+                time.sleep(2)
+                dismiss_cookie_banner(pg)
 
                 contact_found = find_contact_page(pg, website)
-                # Agar contact page na mile, tab bhi haar mat maano -
-                # ho sakta hai form homepage/footer pe ho. Aage Claude ko dekhne do.
                 if not contact_found:
                     log.info("  No separate contact page - checking current page for form")
 
                 time.sleep(1)
-                dismiss_cookie_banner(pg)   # contact page pe bhi check karo
+                dismiss_cookie_banner(pg)
 
-                # Form ke load hone ka intezaar - GoDaddy/Wix/Weebly jaise builders
-                # form ko JS se late inject karte hain. Scroll + wait karo.
                 try:
                     pg.wait_for_load_state("networkidle", timeout=6000)
                 except Exception:
                     pass
                 try:
-                    # form/input dikhne ka intezaar (max 8 sec)
                     pg.wait_for_selector("form, input[type='email'], input[type='text'], textarea",
                                          timeout=8000)
                 except Exception:
@@ -660,23 +632,20 @@ def main():
                 except Exception:
                     pass
 
-                # Solve captcha if present
                 solve_captcha(pg, website)
 
-                # Claude analyzes form
+                # Claude processes dynamic templates
                 try:
-                    actions = ask_claude(pg, website)
+                    actions = ask_claude(pg, website, current_subject, current_message)
                     log.info("  [AI] {} actions".format(len(actions)))
                 except Exception as e:
                     log.error("  [AI] Error: {}".format(e))
                     update_sheet_row(ws, row_idx, "error", "AI error: {}".format(str(e)[:80]))
                     continue
 
-                # Execute - execute_actions khud post-submit captcha handle karta hai
                 filled, submitted = execute_actions(pg, actions)
                 time.sleep(1)
 
-                # Screenshot BEFORE submit - form filled dikhega
                 try:
                     import re, os
                     safe_name = re.sub(r'[^a-zA-Z0-9]', '_', website)[:50]
@@ -687,10 +656,6 @@ def main():
                 except Exception as e:
                     log.warning("  [Screenshot] Failed: {}".format(e))
 
-                # Status - teen clear cases:
-                # - kuch fill nahi hua / form mila hi nahi -> no_form_found (skip, manual zaroori nahi)
-                # - fill hua par submit confirm nahi -> filled_not_submitted (manual try)
-                # - submit confirm -> submitted
                 if submitted:
                     status = "submitted"
                 elif not filled:
@@ -698,10 +663,8 @@ def main():
                 else:
                     status = "filled_not_submitted"
 
-                # Screenshot AFTER submit - confirmation page dikhega
                 try:
                     import re, os
-                    # submit ke baad page settle hone do (redirect / thank-you page)
                     try:
                         pg.wait_for_load_state("networkidle", timeout=8000)
                     except Exception:
@@ -721,6 +684,7 @@ def main():
                     note_text = "No form on page (manual not needed)"
                 else:
                     note_text = "Submit failed - try manually"
+                    
                 update_sheet_row(
                     ws, row_idx, status,
                     notes=note_text,
