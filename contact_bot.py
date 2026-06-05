@@ -35,9 +35,25 @@ FULL_NAME   = "Ray Charles"
 COMPANY     = "Zevahit"
 EMAIL       = "sales@zevahit.com"
 PHONE       = "+17162220972"
-SUBJECT     = "When AI gets asked best SEO agency in NJ, is your name in the answer?"
+SUBJECT     = "Top Dentists in Somers Point – Limited Featured Spots Available"
 
-MESSAGE = "Hi,\n\nMore prospects now ask ChatGPT or Google's AI Overview for the \"best SEO agency in New Jersey\" - and start with whoever gets named. Those answers pull from curated listicles on trusted publishers.\n\nWe're finalizing one on OCNJ Daily (an NJ publisher) and can include your agency - brand visibility, not just a link.\n\n- Brand mention - $100\n- Mention + link - $200\n\nReply and I'll share the publisher details and draft. No pressure either way.\n\nWarm regards,\nRay\nZevahit.com\nReviews: https://clutch.co/profile/zevahit#reviews"
+MESSAGE = """"Hi,
+
+Quick one — we're finalizing "Top Dentists in Somers Point" on OCNJ Daily (a trusted local South Jersey publisher). The article goes live on June 12, and only a couple of spots are left:
+
+- Brand mention — $100
+- Mention + backlink — $200
+
+Worth considering because it's a relevance-rich local citation and a citable listicle that AI engines like ChatGPT and Google AI Overviews often reference when people search for the best dentists in Somers Point. It's an opportunity to be featured where both Google and AI-driven search are looking.
+
+Reply YES and I'll send full details to reserve your spot before the 12th.
+
+Warm Regards,
+Ray
+Zevahit.com
+
+Client reviews:
+https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
