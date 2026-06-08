@@ -14,7 +14,7 @@ import logging
 import sys
 from datetime import datetime
 
-import anthropic
+import google.generativeai as genai
 import gspread
 from google.oauth2.service_account import Credentials
 from playwright.sync_api import sync_playwright
@@ -24,10 +24,14 @@ import twocaptcha
 #  CONFIGURATION - GitHub Secrets se aata hai
 # ------------------------------------------
 
-ANTHROPIC_API_KEY   = os.environ["ANTHROPIC_API_KEY"]
+GEMINI_API_KEY      = os.environ["GEMINI_API_KEY"]       # Google AI Studio se free key
 CAPTCHA_API_KEY     = os.environ["CAPTCHA_API_KEY"]
 GOOGLE_SHEET_ID     = os.environ["GOOGLE_SHEET_ID"]       # Sheet URL se ID
 GOOGLE_CREDS_JSON   = os.environ["GOOGLE_CREDS_JSON"]     # Service account JSON
+
+# Gemini setup - 3.1 Flash Lite (500 req/day free tier)
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel("gemini-3.1-flash-lite")
 
 FIRST_NAME  = "Ray"
 LAST_NAME   = "Charles"
@@ -406,28 +410,23 @@ Rules:
         message=message
     )
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=60.0)
     raw = None
-    waits = [5, 15, 30, 45]
+    waits = [5, 20, 40, 60]
     for attempt in range(4):
         try:
-            response = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            raw = response.content[0].text.strip()
+            resp = gemini_model.generate_content(prompt)
+            raw = resp.text.strip()
             break
         except Exception as e:
             msg = str(e)
-            if any(code in msg for code in ("529", "429", "500", "503", "overloaded", "timeout")):
+            if any(code in msg for code in ("429", "500", "503", "overloaded", "quota", "timeout", "rate")):
                 w = waits[attempt]
-                log.warning("  [AI] API busy ({}), retry in {}s...".format(msg[:40], w))
+                log.warning("  [AI] Gemini busy ({}), retry in {}s...".format(msg[:40], w))
                 time.sleep(w)
                 continue
             raise
     if raw is None:
-        raise Exception("Claude API failed after 4 retries")
+        raise Exception("Gemini API failed after 4 retries")
 
     if "```" in raw:
         raw = raw.split("```")[1]
