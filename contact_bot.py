@@ -464,20 +464,80 @@ def execute_actions(page, actions):
             scroll_to(page, locator)
 
             if act == "fill":
-                if locator.is_visible(timeout=1000):
-                    locator.fill(value)
+                done = False
+                # Pehle normal Playwright fill (visible field)
+                try:
+                    if locator.is_visible(timeout=1500):
+                        locator.fill(value)
+                        done = True
+                except Exception:
+                    pass
+                # Fallback: field exists but not "visible" (animation/scroll/0-opacity).
+                # JS se directly value set karo + input/change events fire karo.
+                if not done:
+                    try:
+                        if locator.count() > 0:
+                            locator.evaluate(
+                                """(el, val) => {
+                                    el.value = val;
+                                    el.dispatchEvent(new Event('input', {bubbles:true}));
+                                    el.dispatchEvent(new Event('change', {bubbles:true}));
+                                    el.dispatchEvent(new Event('blur', {bubbles:true}));
+                                }""",
+                                value
+                            )
+                            done = True
+                            log.info("  [OK] fill (JS): {}".format(selector[:50]))
+                    except Exception:
+                        pass
+                if done:
                     log.info("  [OK] fill: {}".format(selector[:50]))
                     filled.append(selector[:30])
 
             elif act == "check":
-                if locator.is_visible(timeout=1000) and not locator.is_checked():
-                    locator.check()
-                    log.info("  [OK] check: {}".format(selector[:50]))
+                done = False
+                try:
+                    if locator.is_visible(timeout=1000) and not locator.is_checked():
+                        locator.check()
+                        done = True
+                except Exception:
+                    pass
+                if not done:
+                    try:
+                        if locator.count() > 0:
+                            locator.evaluate(
+                                """(el) => {
+                                    if (!el.checked) {
+                                        el.checked = true;
+                                        el.dispatchEvent(new Event('change', {bubbles:true}));
+                                    }
+                                }"""
+                            )
+                    except Exception:
+                        pass
+                log.info("  [OK] check: {}".format(selector[:50]))
 
             elif act == "select":
-                if locator.is_visible(timeout=1000):
-                    locator.select_option(value)
-                    log.info("  [OK] select: {}".format(selector[:50]))
+                done = False
+                try:
+                    if locator.is_visible(timeout=1000):
+                        locator.select_option(value)
+                        done = True
+                except Exception:
+                    pass
+                if not done:
+                    try:
+                        if locator.count() > 0:
+                            locator.evaluate(
+                                """(el, val) => {
+                                    el.value = val;
+                                    el.dispatchEvent(new Event('change', {bubbles:true}));
+                                }""",
+                                value
+                            )
+                    except Exception:
+                        pass
+                log.info("  [OK] select: {}".format(selector[:50]))
 
             elif act == "click":
                 if locator.is_visible(timeout=1000):
@@ -523,11 +583,35 @@ def execute_actions(page, actions):
                                 pass
                         page_text = ""
                         try:
-                            page_text = page.inner_text("body", timeout=3000).lower()
+                            # Sirf VISIBLE text lo - hidden success/error divs ko ignore karega
+                            page_text = page.evaluate(
+                                """() => {
+                                    const isVisible = (el) => {
+                                        const s = window.getComputedStyle(el);
+                                        return s && s.display !== 'none' && s.visibility !== 'hidden'
+                                               && parseFloat(s.opacity) > 0;
+                                    };
+                                    let out = '';
+                                    document.querySelectorAll('body *').forEach(el => {
+                                        if (el.children.length === 0 && isVisible(el) && el.innerText) {
+                                            out += ' ' + el.innerText;
+                                        }
+                                    });
+                                    return out.toLowerCase();
+                                }"""
+                            )
                         except Exception:
-                            pass
+                            try:
+                                page_text = page.inner_text("body", timeout=3000).lower()
+                            except Exception:
+                                pass
+                        # Agar visible "something went wrong" type error aaya to success mat maano
+                        error_words = ["went wrong", "try refreshing", "try again", "could not be sent",
+                                       "failed to send", "error occurred", "please fill", "is required",
+                                       "invalid email", "enter a valid"]
+                        has_error = any(e in page_text for e in error_words)
                         url_changed = page.url != url_before
-                        if any(w in page_text for w in success_words) or url_changed:
+                        if (any(w in page_text for w in success_words) and not has_error) or url_changed:
                             confirmed = True
                             break
                         if i == 3 and not retried_click:
