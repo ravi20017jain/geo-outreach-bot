@@ -33,17 +33,17 @@ GOOGLE_CREDS_JSON   = os.environ["GOOGLE_CREDS_JSON"]     # Service account JSON
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-3.1-flash-lite")
 
-FIRST_NAME  = "Ray"
-LAST_NAME   = "Charles"
-FULL_NAME   = "Ray Charles"
-COMPANY     = "Zevahit"
-EMAIL       = "sales@zevahit.com"
-PHONE       = "+17162220972"
+FIRST_NAME  = "Salman"
+LAST_NAME   = "Khan"
+FULL_NAME   = "Salman Khan"
+COMPANY     = "LocalTuneUp"
+EMAIL       = "salman@localtuneup.com"
+PHONE       = "+918889652586"
 
-# Templates mein Niche (Law Firm) strictly static hai, sirf {city} dynamic hai
-SUBJECT_TEMPLATE = "Top Law Firm in {city} - Limited Featured Spots Available"
+# LocalTuneup ka message fixed hai (city placeholder ki zarurat nahi)
+SUBJECT_TEMPLATE = "Free 14-Day Trial - Google Business Profile Management"
 
-MESSAGE_TEMPLATE = "Hi,\n\nQuick one - we're finalizing \"Top Law Firm in {city}\" on OCNJ Daily (a trusted local South Jersey publisher). The article goes live on June 12, and only a couple of spots are left:\n\n- Brand mention - $100\n- Mention + backlink - $200\n\nWorth considering because it's a relevance-rich local citation and a citable listicle that AI engines like ChatGPT and Google AI Overviews often reference when people search for the best Law Firm in {city}. It's an opportunity to be featured where both Google and AI-driven search are looking.\n\nReply YES and I'll send full details to reserve your spot before the 12th.\n\nWarm Regards,\nRay\nZevahit.com\nClient reviews: https://clutch.co/profile/zevahit#reviews"
+MESSAGE_TEMPLATE = "Hi,\n\nWhen patients search \"dentist near me,\" your Google Business Profile decides whether they pick you or a competitor. Most clinics don't manage it actively.\n\nLocalTuneUp handles it for you - reviews, posts, photos, local ranking - so you rank higher and book more patients.\n\nFree 14-day trial, no card needed. Reply YES and we'll set it up.\n\n- Team LocalTuneUp\nlocaltuneup.com"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
@@ -396,6 +396,7 @@ Rules:
 - REQUIRED checkbox groups (marked with * like "Services", "Interested in", "Budget"): you MUST select at least one option, else the form won't submit. Prefer an SEO / digital-marketing / "Google SEO" / "search" related option if available; otherwise pick the first reasonable option. Use "check" for it.
 - For the submit button use "click" - include it LAST. Pick the form's actual submit button (type="submit" inside the contact form), not a search or login button.
 - COMMON FIELDS: fill phone/mobile with the phone, website/url with our site, subject/topic with a short subject like "Partnership enquiry". For dropdowns/select (subject, service, "how did you hear", country), use "select" and pick the most relevant option (e.g. SEO/marketing/general enquiry); if unsure pick the first non-empty option.
+- SKIP appointment-booking fields: do NOT fill Date, Time, date pickers, calendar fields, age, or appointment-slot fields. Leave them empty. Fill only name, email, phone, company, and message. Put all the outreach text in the message/comment field.
 - Message field: use the FULL message text provided
 - Return ONLY JSON, no markdown, no explanation""".format(
         website=website,
