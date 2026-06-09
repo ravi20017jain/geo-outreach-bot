@@ -43,7 +43,7 @@ PHONE       = "+918889652586"
 # LocalTuneup ka message fixed hai (city placeholder ki zarurat nahi)
 SUBJECT_TEMPLATE = "Free 14-Day Trial - Google Business Profile Management"
 
-MESSAGE_TEMPLATE = "Hi,\n\nWhen patients search \"dentist near me,\" your Google Business Profile decides whether they pick you or a competitor. Most clinics don't manage it actively.\n\nLocalTuneUp handles it for you - reviews, posts, photos, local ranking - so you rank higher and book more patients.\n\nFree 14-day trial, no card needed. Reply YES and we'll set it up.\n\n- Team LocalTuneUp\nlocaltuneup.com"
+MESSAGE_TEMPLATE = "Hi,\n\nWhen people search \"dry cleaning near me,\" your Google Business Profile decides whether they walk into your shop or a competitor's. Most dry cleaners don't manage it actively.\n\nLocalTuneUp handles it for you - reviews, posts, photos, local ranking - so you show up first and get more walk-ins.\n\nFree 14-day trial, no card needed. Reply YES and we'll set it up.\n\n- Team LocalTuneUp\nlocaltuneup.com"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
