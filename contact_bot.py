@@ -33,17 +33,17 @@ GOOGLE_CREDS_JSON   = os.environ["GOOGLE_CREDS_JSON"]     # Service account JSON
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-3.1-flash-lite")
 
-FIRST_NAME  = "Salman"
-LAST_NAME   = "Khan"
-FULL_NAME   = "Salman Khan"
-COMPANY     = "LocalTuneUp"
-EMAIL       = "salman@localtuneup.com"
-PHONE       = "+918889652586"
+FIRST_NAME  = "Ray"
+LAST_NAME   = "Charles"
+FULL_NAME   = "Ray Charles"
+COMPANY     = "Zevahit"
+EMAIL       = "sales@zevahit.com"
+PHONE       = "+17162220972"
 
-# LocalTuneup ka message fixed hai (city placeholder ki zarurat nahi)
-SUBJECT_TEMPLATE = "Free 14-Day Trial - Google Business Profile Management"
+# Fixed message - koi city placeholder nahi
+SUBJECT_TEMPLATE = "Backlinks + GEO your agency can resell - white-label"
 
-MESSAGE_TEMPLATE = "Hi,\n\nWhen people search \"dry cleaning near me,\" your Google Business Profile decides whether they walk into your shop or a competitor's. Most dry cleaners don't manage it actively.\n\nLocalTuneUp handles it for you - reviews, posts, photos, local ranking - so you show up first and get more walk-ins.\n\nFree 14-day trial, no card needed. Reply YES and we'll set it up.\n\n- Team LocalTuneUp\nlocaltuneup.com"
+MESSAGE_TEMPLATE = "Hi,\n\nQuick one for your agency. Building quality backlinks is slow and expensive, and now clients are also asking why they're invisible in ChatGPT and Google AI Overviews.\n\nZevahit solves both: high-authority guest placements that earn real backlinks AND get your clients cited by AI engines (GEO). Fully white-label - offer it as your own service, we work behind the scenes.\n\nNew revenue line, faster client wins, zero outreach work for you.\n\nReply YES for samples and reseller pricing.\n\nWarm Regards,\nRay\nZevahit.com\nClient reviews: https://clutch.co/profile/zevahit#reviews"
 
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
@@ -86,12 +86,12 @@ def init_sheets():
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(GOOGLE_SHEET_ID)
 
-    # Websites sheet check karo ya banao (7 Columns ke saath)
+    # Websites sheet check karo ya banao (6 Columns)
     try:
         ws = sh.worksheet("websites")
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet("websites", rows=1000, cols=7)
-        ws.update("A1:G1", [["website", "city", "status", "submitted_at", "notes", "fields_filled", "ai_actions"]])
+        ws = sh.add_worksheet("websites", rows=1000, cols=6)
+        ws.update("A1:F1", [["website", "status", "submitted_at", "notes", "fields_filled", "ai_actions"]])
 
     return ws
 
@@ -464,80 +464,20 @@ def execute_actions(page, actions):
             scroll_to(page, locator)
 
             if act == "fill":
-                done = False
-                # Pehle normal Playwright fill (visible field)
-                try:
-                    if locator.is_visible(timeout=1500):
-                        locator.fill(value)
-                        done = True
-                except Exception:
-                    pass
-                # Fallback: field exists but not "visible" (animation/scroll/0-opacity).
-                # JS se directly value set karo + input/change events fire karo.
-                if not done:
-                    try:
-                        if locator.count() > 0:
-                            locator.evaluate(
-                                """(el, val) => {
-                                    el.value = val;
-                                    el.dispatchEvent(new Event('input', {bubbles:true}));
-                                    el.dispatchEvent(new Event('change', {bubbles:true}));
-                                    el.dispatchEvent(new Event('blur', {bubbles:true}));
-                                }""",
-                                value
-                            )
-                            done = True
-                            log.info("  [OK] fill (JS): {}".format(selector[:50]))
-                    except Exception:
-                        pass
-                if done:
+                if locator.is_visible(timeout=1000):
+                    locator.fill(value)
                     log.info("  [OK] fill: {}".format(selector[:50]))
                     filled.append(selector[:30])
 
             elif act == "check":
-                done = False
-                try:
-                    if locator.is_visible(timeout=1000) and not locator.is_checked():
-                        locator.check()
-                        done = True
-                except Exception:
-                    pass
-                if not done:
-                    try:
-                        if locator.count() > 0:
-                            locator.evaluate(
-                                """(el) => {
-                                    if (!el.checked) {
-                                        el.checked = true;
-                                        el.dispatchEvent(new Event('change', {bubbles:true}));
-                                    }
-                                }"""
-                            )
-                    except Exception:
-                        pass
-                log.info("  [OK] check: {}".format(selector[:50]))
+                if locator.is_visible(timeout=1000) and not locator.is_checked():
+                    locator.check()
+                    log.info("  [OK] check: {}".format(selector[:50]))
 
             elif act == "select":
-                done = False
-                try:
-                    if locator.is_visible(timeout=1000):
-                        locator.select_option(value)
-                        done = True
-                except Exception:
-                    pass
-                if not done:
-                    try:
-                        if locator.count() > 0:
-                            locator.evaluate(
-                                """(el, val) => {
-                                    el.value = val;
-                                    el.dispatchEvent(new Event('change', {bubbles:true}));
-                                }""",
-                                value
-                            )
-                    except Exception:
-                        pass
-                log.info("  [OK] select: {}".format(selector[:50]))
+                if locator.is_visible(timeout=1000):
+                    locator.select_option(value)
+                    log.info("  [OK] select: {}".format(selector[:50]))
 
             elif act == "click":
                 if locator.is_visible(timeout=1000):
@@ -583,35 +523,11 @@ def execute_actions(page, actions):
                                 pass
                         page_text = ""
                         try:
-                            # Sirf VISIBLE text lo - hidden success/error divs ko ignore karega
-                            page_text = page.evaluate(
-                                """() => {
-                                    const isVisible = (el) => {
-                                        const s = window.getComputedStyle(el);
-                                        return s && s.display !== 'none' && s.visibility !== 'hidden'
-                                               && parseFloat(s.opacity) > 0;
-                                    };
-                                    let out = '';
-                                    document.querySelectorAll('body *').forEach(el => {
-                                        if (el.children.length === 0 && isVisible(el) && el.innerText) {
-                                            out += ' ' + el.innerText;
-                                        }
-                                    });
-                                    return out.toLowerCase();
-                                }"""
-                            )
+                            page_text = page.inner_text("body", timeout=3000).lower()
                         except Exception:
-                            try:
-                                page_text = page.inner_text("body", timeout=3000).lower()
-                            except Exception:
-                                pass
-                        # Agar visible "something went wrong" type error aaya to success mat maano
-                        error_words = ["went wrong", "try refreshing", "try again", "could not be sent",
-                                       "failed to send", "error occurred", "please fill", "is required",
-                                       "invalid email", "enter a valid"]
-                        has_error = any(e in page_text for e in error_words)
+                            pass
                         url_changed = page.url != url_before
-                        if (any(w in page_text for w in success_words) and not has_error) or url_changed:
+                        if any(w in page_text for w in success_words) or url_changed:
                             confirmed = True
                             break
                         if i == 3 and not retried_click:
@@ -679,15 +595,12 @@ def main():
         for row_idx, row_data in to_process:
             website_raw = row_data.get("website", "")
             website = normalise_url(website_raw)
-            
-            # Sheet se unique row ki city read karega, khali hone par fallback lagayega
-            city = str(row_data.get("city", "Somers Point")).strip() or "Somers Point"
-            
-            # Dynamic text allocation
-            current_subject = SUBJECT_TEMPLATE.format(city=city)
-            current_message = MESSAGE_TEMPLATE.format(city=city)
 
-            log.info("\nOpening: {} [City: {}]".format(website, city))
+            # Fixed message - city ki zarurat nahi
+            current_subject = SUBJECT_TEMPLATE
+            current_message = MESSAGE_TEMPLATE
+
+            log.info("\nOpening: {}".format(website))
 
             try:
                 pg.goto(website, timeout=30000, wait_until="domcontentloaded")
