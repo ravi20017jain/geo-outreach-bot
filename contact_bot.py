@@ -41,9 +41,37 @@ EMAIL       = "salman@localtuneup.com"
 PHONE       = "+918889652586"
 
 # Fixed message - Indian SEO/digital agencies ko white-label GBP offer (short)
-SUBJECT_TEMPLATE = "White-label Google Business Profile management for your agency"
+SUBJECT_TEMPLATE = "Add recurring revenue to your agency without hiring"
 
-MESSAGE_TEMPLATE = "Hi,\n\nManaging multiple client GBPs manually eats up your team's time every week.\n\nLocalTuneUp is an AI-powered tool that lets SEO & digital marketing agencies offer fully white-label GBP management to clients - reviews, posts, citations, optimization, multi-location - billed as your own service. We run it behind the scenes.\n\nProfessional reporting format with geo-grid scan, keyword tracking, and automatic report sending to your clients.\n\nPricing: just ₹500 per location/month (minimum 5 locations).\n\nFree 14-day agency trial. Reply YES and we'll set up your account.\n\n- Team LocalTuneUp\nlocaltuneup.com"
+MESSAGE_TEMPLATE = """Hi,
+
+I was reviewing your agency website and noticed you're already helping businesses improve their online visibility.
+
+What if every local SEO client could generate an additional ₹3,000–₹15,000/month in recurring revenue without adding more staff?
+
+LocalTuneUp is a fully white-label local marketing platform built for agencies.
+
+• Google Business Profile Management
+• AI Review Replies
+• Geo-Grid Ranking Maps
+• Keyword Tracking
+• White-Label Reports
+• Social Media Scheduling
+• Multi-Location Management
+
+You keep your branding and pricing while we provide the software.
+
+Agency Pricing:
+₹500 per location/month
+Minimum 5 locations
+
+Free 14-day agency trial.
+
+Reply YES and we'll set up a demo account.
+
+– Team LocalTuneUp
+https://www.localtuneup.com
+"""
 PROCESS_LIMIT = None  # None = sab sites ek hi run mein
 
 CONTACT_KEYWORDS = ["contact", "contact-us", "contactus", "contact-form", "get-in-touch",
